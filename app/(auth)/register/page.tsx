@@ -1,13 +1,38 @@
 "use client"
 
+import { useState } from "react"
 import { motion } from "framer-motion"
-import { Stethoscope, ArrowRight } from "lucide-react"
+import { Stethoscope, ArrowRight, Loader2 } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { useAuth } from "@/lib/auth-context"
 
 export default function RegisterPage() {
+  const router = useRouter()
+  const { register } = useAuth()
+  const [name, setName] = useState("")
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [error, setError] = useState("")
+  const [loading, setLoading] = useState(false)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError("")
+    setLoading(true)
+    try {
+      await register(name, email, password)
+      router.push("/login?registered=true")
+    } catch (err: any) {
+      setError(err.message || "Registration failed")
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="relative min-h-screen flex overflow-hidden bg-gradient-to-br from-slate-50 via-white to-teal-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-teal-100/40 via-transparent to-transparent dark:from-teal-950/20" />
@@ -57,32 +82,53 @@ export default function RegisterPage() {
               <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Register your clinic to get started</p>
             </div>
 
-            <form className="space-y-5">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="firstName">First name</Label>
-                  <Input id="firstName" placeholder="John" required />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="lastName">Last name</Label>
-                  <Input id="lastName" placeholder="Doe" required />
-                </div>
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div className="space-y-2">
+                <Label htmlFor="name">Full name</Label>
+                <Input
+                  id="name"
+                  placeholder="John Doe"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="reg-email">Email</Label>
-                <Input id="reg-email" type="email" placeholder="name@clinic.com" required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="clinic-name">Clinic name</Label>
-                <Input id="clinic-name" placeholder="Your Dental Clinic" required />
+                <Input
+                  id="reg-email"
+                  type="email"
+                  placeholder="name@clinic.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="reg-password">Password</Label>
-                <Input id="reg-password" type="password" placeholder="Create a strong password" required />
+                <Input
+                  id="reg-password"
+                  type="password"
+                  placeholder="Create a strong password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={8}
+                />
               </div>
-              <Button type="submit" className="w-full h-11 text-base">
-                Create Account
-                <ArrowRight className="ml-2 h-4 w-4" />
+
+              {error && (
+                <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50">
+                  <p className="text-xs sm:text-sm text-rose-600 dark:text-rose-400">{error}</p>
+                </div>
+              )}
+
+              <Button type="submit" className="w-full h-11 text-base" disabled={loading}>
+                {loading ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating Account...</>
+                ) : (
+                  <><span>Create Account</span><ArrowRight className="ml-2 h-4 w-4" /></>
+                )}
               </Button>
             </form>
 

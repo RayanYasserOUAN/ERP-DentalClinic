@@ -1,4 +1,4 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api"
+const API_BASE = "/api"
 
 let accessToken: string | null = null
 let refreshTokenFn: (() => Promise<string | null>) | null = null
@@ -117,7 +117,6 @@ export async function apiRequest<T = unknown>(path: string, config: RequestConfi
   return json
 }
 
-// Auth API
 export const authApi = {
   login: (email: string, password: string) =>
     apiRequest<{ data: { user: any; accessToken: string; refreshToken: string } }>("/auth/login", {
@@ -136,14 +135,12 @@ export const authApi = {
   me: () => apiRequest<{ data: any }>("/auth/me"),
 }
 
-// Dashboard API
 export const dashboardApi = {
   stats: () => apiRequest<{ data: any }>("/dashboard/stats"),
   revenue: () => apiRequest<{ data: any[] }>("/dashboard/revenue"),
   todayAppointments: () => apiRequest<{ data: any[] }>("/dashboard/today-appointments"),
 }
 
-// Patients API
 export const patientsApi = {
   list: (params?: Record<string, string | number | boolean | undefined>) =>
     apiRequest<{ data: any[]; pagination?: any }>("/patients", { params }),
@@ -153,7 +150,6 @@ export const patientsApi = {
   delete: (id: string) => apiRequest(`/patients/${id}`, { method: "DELETE" }),
 }
 
-// Appointments API
 export const appointmentsApi = {
   list: (params?: Record<string, string | number | boolean | undefined>) =>
     apiRequest<{ data: any[]; pagination?: any }>("/appointments", { params }),
@@ -165,7 +161,6 @@ export const appointmentsApi = {
   delete: (id: string) => apiRequest(`/appointments/${id}`, { method: "DELETE" }),
 }
 
-// Billing API
 export const billingApi = {
   list: (params?: Record<string, string | number | boolean | undefined>) =>
     apiRequest<{ data: any[]; pagination?: any }>("/billing", { params }),
@@ -176,7 +171,6 @@ export const billingApi = {
   summary: () => apiRequest<{ data: any }>("/billing/summary/overview"),
 }
 
-// Inventory API
 export const inventoryApi = {
   list: (params?: Record<string, string | number | boolean | undefined>) =>
     apiRequest<{ data: any[]; pagination?: any }>("/inventory", { params }),
@@ -184,7 +178,6 @@ export const inventoryApi = {
   summary: () => apiRequest<{ data: any }>("/inventory/summary"),
 }
 
-// Staff API
 export const staffApi = {
   list: (params?: Record<string, string | number | boolean | undefined>) =>
     apiRequest<{ data: any[] }>("/staff", { params }),
@@ -192,18 +185,15 @@ export const staffApi = {
   summary: () => apiRequest<{ data: any }>("/staff/summary"),
 }
 
-// Treatments API
 export const treatmentsApi = {
   list: (params?: Record<string, string | number | boolean | undefined>) =>
     apiRequest<{ data: any[]; pagination?: any }>("/treatments", { params }),
 }
 
-// Branches API
 export const branchesApi = {
   list: () => apiRequest<{ data: any[] }>("/branches"),
 }
 
-// Notifications API
 export const notificationsApi = {
   list: () => apiRequest<{ data: any[] }>("/notifications"),
   markRead: (id: string) => apiRequest(`/notifications/${id}/read`, { method: "PATCH" }),

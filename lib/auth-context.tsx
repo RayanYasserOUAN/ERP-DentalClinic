@@ -1,9 +1,11 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react"
+import { createClient } from "@/lib/supabase/client"
+import type { User } from "@supabase/supabase-js"
 import { authApi, setTokens, clearTokens, getAccessToken, setRefreshHandler } from "./api"
 
-interface User {
+interface AppUser {
   id: string
   name: string
   email: string
@@ -17,7 +19,7 @@ interface User {
 }
 
 interface AuthContextType {
-  user: User | null
+  user: AppUser | null
   loading: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
@@ -26,8 +28,23 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+function mapUser(authUser: User, appData?: any): AppUser {
+  return {
+    id: authUser.id,
+    name: appData?.name || authUser.user_metadata?.name || authUser.email?.split("@")[0] || "User",
+    email: authUser.email || "",
+    role: appData?.role || "patient",
+    roleId: appData?.role_id || "",
+    branchId: appData?.branch_id || null,
+    branchName: appData?.branch_name,
+    avatar: appData?.avatar || authUser.user_metadata?.avatar_url,
+    phone: appData?.phone,
+    department: appData?.department,
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<AppUser | null>(null)
   const [loading, setLoading] = useState(true)
 
   const refreshHandler = useCallback(async () => {
@@ -50,54 +67,111 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refreshHandler])
 
   useEffect(() => {
-    async function loadUser() {
-      const token = getAccessToken()
-      if (!token) {
-        setLoading(false)
-        return
-      }
+    const supabase = createClient()
 
-      try {
-        const result = await authApi.me()
-        setUser(result.data)
-      } catch {
-        const newToken = await refreshHandler()
-        if (newToken) {
-          try {
-            const result = await authApi.me()
-            setUser(result.data)
-          } catch {
-            clearTokens()
-          }
-        } else {
-          clearTokens()
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.access_token) {
+        setTokens(session.access_token, session.refresh_token)
+        fetchUserData(session.user.id).then((appData) => {
+          setUser(mapUser(session.user, appData))
+          setLoading(false)
+        }).catch(() => {
+          setUser(mapUser(session.user))
+          setLoading(false)
+        })
+      } else {
+        const token = getAccessToken()
+        if (!token) {
+          setLoading(false)
+          return
         }
-      } finally {
-        setLoading(false)
+        loadUserFromApi()
       }
-    }
+    })
 
-    loadUser()
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.access_token) {
+        setTokens(session.access_token, session.refresh_token)
+        fetchUserData(session.user.id).then((appData) => {
+          setUser(mapUser(session.user, appData))
+        }).catch(() => {
+          setUser(mapUser(session.user))
+        })
+      } else if (event === "SIGNED_OUT") {
+        clearTokens()
+        setUser(null)
+      }
+    })
+
+    return () => subscription.unsubscribe()
   }, [refreshHandler])
 
+  async function fetchUserData(userId: string) {
+    const res = await fetch(`/api/auth/me`)
+    if (res.ok) {
+      const json = await res.json()
+      return json.data
+    }
+    return null
+  }
+
+  async function loadUserFromApi() {
+    const token = getAccessToken()
+    if (!token) {
+      setLoading(false)
+      return
+    }
+
+    try {
+      const result = await authApi.me()
+      setUser(result.data)
+    } catch {
+      const newToken = await refreshHandler()
+      if (newToken) {
+        try {
+          const result = await authApi.me()
+          setUser(result.data)
+        } catch {
+          clearTokens()
+        }
+      } else {
+        clearTokens()
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const login = useCallback(async (email: string, password: string) => {
-    const result = await authApi.login(email, password)
-    setTokens(result.data.accessToken, result.data.refreshToken)
-    setUser(result.data.user)
+    const supabase = createClient()
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+
+    if (error) throw error
+
+    if (data.session) {
+      setTokens(data.session.access_token, data.session.refresh_token)
+    }
+
+    const meResult = await authApi.me()
+    setUser(meResult.data)
   }, [])
 
   const logout = useCallback(async () => {
-    const refreshToken = localStorage.getItem("refreshToken")
-    try {
-      await authApi.logout(refreshToken || undefined)
-    } catch {
-      // ignore
-    }
+    const supabase = createClient()
+    await supabase.auth.signOut()
     clearTokens()
     setUser(null)
   }, [])
 
   const register = useCallback(async (name: string, email: string, password: string) => {
+    const supabase = createClient()
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { name } },
+    })
+    if (error) throw error
+
     await authApi.register({ name, email, password })
   }, [])
 
