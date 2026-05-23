@@ -1,19 +1,56 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { CalendarDays, Users, Activity, DollarSign, TrendingUp, Clock, AlertTriangle, Stethoscope } from "lucide-react"
+import { CalendarDays, Users, Activity, DollarSign, TrendingUp, Clock, AlertTriangle, Stethoscope, Loader2 } from "lucide-react"
 import { StatsCard } from "@/components/dashboard/stats-card"
-import { getDashboardStats, mockAppointments, getMonthlyRevenue } from "@/lib/data"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { getInitials, formatTime } from "@/lib/utils"
+import { getInitials } from "@/lib/utils"
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
+import { dashboardApi } from "@/lib/api"
 
 export default function DashboardPage() {
-  const stats = getDashboardStats()
-  const revenueData = getMonthlyRevenue()
-  const todayAppts = mockAppointments.filter((a) => a.date === "2025-05-21")
+  const [stats, setStats] = useState<any>(null)
+  const [revenueData, setRevenueData] = useState<any[]>([])
+  const [todayAppts, setTodayAppts] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const [statsRes, revenueRes, apptsRes] = await Promise.all([
+          dashboardApi.stats(),
+          dashboardApi.revenue(),
+          dashboardApi.todayAppointments(),
+        ])
+        setStats(statsRes.data)
+        setRevenueData(revenueRes.data)
+        setTodayAppts(apptsRes.data)
+      } catch (err) {
+        console.error("Failed to load dashboard data:", err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadData()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-teal-500" />
+      </div>
+    )
+  }
+
+  const s = stats || {
+    todaysAppointments: 0, totalPatients: 0, monthlyEarnings: 0,
+    pendingPayments: 0, appointmentChange: 0, patientChange: 0,
+    revenueChange: 0, lowStockItems: 0, activeTreatments: 0,
+    staffOnDuty: 0, waitingPatients: 0,
+  }
 
   return (
     <div className="space-y-6">
@@ -25,50 +62,20 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold font-heading text-slate-900 dark:text-white">Dashboard</h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5 sm:mt-1">
-            Welcome back, Dr. White. Here&apos;s your clinic overview.
+            Welcome back. Here&apos;s your clinic overview.
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs sm:text-sm text-slate-400">
           <CalendarDays className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-          <span>May 21, 2025</span>
+          <span>{new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</span>
         </div>
       </motion.div>
 
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-        <StatsCard
-          title="Today's Appointments"
-          value={stats.todaysAppointments}
-          change={stats.appointmentChange}
-          changeLabel="vs last week"
-          icon={CalendarDays}
-          variant="teal"
-          index={0}
-        />
-        <StatsCard
-          title="Total Patients"
-          value={stats.totalPatients}
-          change={stats.patientChange}
-          changeLabel="this month"
-          icon={Users}
-          variant="blue"
-          index={1}
-        />
-        <StatsCard
-          title="Monthly Revenue"
-          value={`$${stats.monthlyEarnings.toLocaleString()}`}
-          change={stats.revenueChange}
-          changeLabel="vs last month"
-          icon={DollarSign}
-          variant="amber"
-          index={2}
-        />
-        <StatsCard
-          title="Pending Payments"
-          value={`$${stats.pendingPayments.toLocaleString()}`}
-          icon={Clock}
-          variant="rose"
-          index={3}
-        />
+        <StatsCard title="Today's Appointments" value={s.todaysAppointments} change={s.appointmentChange} changeLabel="vs last month" icon={CalendarDays} variant="teal" index={0} />
+        <StatsCard title="Total Patients" value={s.totalPatients} change={s.patientChange} changeLabel="this month" icon={Users} variant="blue" index={1} />
+        <StatsCard title="Monthly Revenue" value={`$${(s.monthlyEarnings || 0).toLocaleString()}`} change={s.revenueChange} changeLabel="vs last month" icon={DollarSign} variant="amber" index={2} />
+        <StatsCard title="Pending Payments" value={`$${(s.pendingPayments || 0).toLocaleString()}`} icon={Clock} variant="rose" index={3} />
       </div>
 
       <div className="grid gap-6 grid-cols-1 lg:grid-cols-3">
@@ -80,7 +87,7 @@ export default function DashboardPage() {
             </div>
             <Badge variant="primary" className="px-3 py-1">
               <TrendingUp className="h-3 w-3 mr-1" />
-              +12.5%
+              +{s.revenueChange || 0}%
             </Badge>
           </CardHeader>
           <CardContent className="pt-4">
@@ -100,14 +107,7 @@ export default function DashboardPage() {
                   <CartesianGrid strokeDasharray="3 3" stroke="oklch(0.87 0 0)" className="dark:opacity-20" />
                   <XAxis dataKey="month" tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
                   <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v/1000}k`} />
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: "12px",
-                      border: "1px solid oklch(0.87 0 0)",
-                      background: "oklch(0.98 0 0)",
-                      boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
-                    }}
-                  />
+                  <Tooltip contentStyle={{ borderRadius: "12px", border: "1px solid oklch(0.87 0 0)", background: "oklch(0.98 0 0)", boxShadow: "0 4px 12px rgba(0,0,0,0.05)" }} />
                   <Area type="monotone" dataKey="revenue" stroke="#14b8a6" strokeWidth={2} fill="url(#revenueGradient)" />
                   <Area type="monotone" dataKey="expenses" stroke="#f43f5e" strokeWidth={2} fill="url(#expenseGradient)" />
                 </AreaChart>
@@ -124,7 +124,7 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {todayAppts.slice(0, 6).map((appt, i) => (
+            {todayAppts.slice(0, 6).map((appt: any, i: number) => (
               <motion.div
                 key={appt.id}
                 initial={{ opacity: 0, x: -10 }}
@@ -143,15 +143,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="text-right">
                   <p className="text-xs font-medium text-slate-700 dark:text-slate-300">{appt.startTime}</p>
-                  <Badge
-                    variant={
-                      appt.status === "confirmed" ? "primary" :
-                      appt.status === "waiting" ? "warning" :
-                      appt.status === "in_treatment" ? "info" :
-                      "default"
-                    }
-                    className="text-[9px] px-1.5 py-0"
-                  >
+                  <Badge variant={appt.status === "confirmed" ? "primary" : appt.status === "waiting" ? "warning" : appt.status === "in_treatment" ? "info" : "default"} className="text-[9px] px-1.5 py-0">
                     {appt.status.replace("_", " ")}
                   </Badge>
                 </div>
@@ -171,7 +163,7 @@ export default function DashboardPage() {
               <AlertTriangle className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-lg font-bold font-heading text-amber-700 dark:text-amber-300">{stats.lowStockItems}</p>
+              <p className="text-lg font-bold font-heading text-amber-700 dark:text-amber-300">{s.lowStockItems}</p>
               <p className="text-xs text-amber-600 dark:text-amber-400">Low Stock Alerts</p>
             </div>
           </CardContent>
@@ -182,7 +174,7 @@ export default function DashboardPage() {
               <Stethoscope className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-lg font-bold font-heading text-teal-700 dark:text-teal-300">{stats.activeTreatments}</p>
+              <p className="text-lg font-bold font-heading text-teal-700 dark:text-teal-300">{s.activeTreatments}</p>
               <p className="text-xs text-teal-600 dark:text-teal-400">Active Treatments</p>
             </div>
           </CardContent>
@@ -193,7 +185,7 @@ export default function DashboardPage() {
               <Users className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-lg font-bold font-heading text-blue-700 dark:text-blue-300">{stats.staffOnDuty}</p>
+              <p className="text-lg font-bold font-heading text-blue-700 dark:text-blue-300">{s.staffOnDuty}</p>
               <p className="text-xs text-blue-600 dark:text-blue-400">Staff on Duty</p>
             </div>
           </CardContent>
@@ -204,7 +196,7 @@ export default function DashboardPage() {
               <Clock className="h-6 w-6" />
             </div>
             <div>
-              <p className="text-lg font-bold font-heading text-rose-700 dark:text-rose-300">{stats.waitingPatients}</p>
+              <p className="text-lg font-bold font-heading text-rose-700 dark:text-rose-300">{s.waitingPatients}</p>
               <p className="text-xs text-rose-600 dark:text-rose-400">Waiting Patients</p>
             </div>
           </CardContent>

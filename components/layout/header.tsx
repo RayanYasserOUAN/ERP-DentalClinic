@@ -1,6 +1,8 @@
 "use client"
 
-import { Bell, Search, LogOut, User, ChevronDown, Settings, Menu } from "lucide-react"
+import { useState, useEffect } from "react"
+import { Bell, Search, LogOut, User, ChevronDown, Settings, Menu, Loader2 } from "lucide-react"
+import { useRouter } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -14,15 +16,40 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
-import { mockNotifications } from "@/lib/data"
 import { getInitials } from "@/lib/utils"
+import { useAuth } from "@/lib/auth-context"
+import { notificationsApi } from "@/lib/api"
 
 interface HeaderProps {
   onMenuClick: () => void
 }
 
 export function Header({ onMenuClick }: HeaderProps) {
-  const unreadCount = mockNotifications.filter((n) => !n.read).length
+  const router = useRouter()
+  const { user, logout } = useAuth()
+  const [notifications, setNotifications] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function loadNotifications() {
+      try {
+        const result = await notificationsApi.list()
+        setNotifications(result.data)
+      } catch {
+        // silently fail
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadNotifications()
+  }, [])
+
+  const unreadCount = notifications.filter((n) => !n.read).length
+
+  const handleLogout = async () => {
+    await logout()
+    router.push("/login")
+  }
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-2 sm:gap-4 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl px-3 sm:px-4 lg:px-6">
@@ -62,16 +89,28 @@ export function Header({ onMenuClick }: HeaderProps) {
             <DropdownMenuLabel>Notifications</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <div className="max-h-72 overflow-y-auto">
-              {mockNotifications.slice(0, 4).map((n) => (
-                <div key={n.id} className="flex items-start gap-3 px-3 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg mx-1 cursor-pointer transition-colors">
-                  <div className={dotClass(n.type)} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{n.title}</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{n.message}</p>
-                  </div>
-                  {!n.read && <Badge variant="primary" className="h-1.5 w-1.5 p-0 rounded-full" />}
+              {loading ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
                 </div>
-              ))}
+              ) : notifications.length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-4">No notifications</p>
+              ) : (
+                notifications.slice(0, 5).map((n: any) => (
+                  <div key={n.id} className="flex items-start gap-3 px-3 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg mx-1 cursor-pointer transition-colors">
+                    <div className={`mt-0.5 h-2 w-2 rounded-full shrink-0 ${
+                      n.type === "warning" ? "bg-amber-500" :
+                      n.type === "success" ? "bg-emerald-500" :
+                      n.type === "error" ? "bg-rose-500" : "bg-blue-500"
+                    }`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{n.title}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{n.message}</p>
+                    </div>
+                    {!n.read && <Badge variant="primary" className="h-1.5 w-1.5 p-0 rounded-full" />}
+                  </div>
+                ))
+              )}
             </div>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -82,12 +121,12 @@ export function Header({ onMenuClick }: HeaderProps) {
               <Avatar className="h-7 w-7 sm:h-8 sm:w-8">
                 <AvatarImage src="" />
                 <AvatarFallback className="text-[10px] sm:text-xs bg-gradient-to-br from-teal-400 to-emerald-500 text-white">
-                  {getInitials("Dr. Emily White")}
+                  {getInitials(user?.name || "User")}
                 </AvatarFallback>
               </Avatar>
               <div className="hidden sm:block text-left">
-                <p className="text-sm font-medium leading-none">Dr. Emily White</p>
-                <p className="text-[11px] text-slate-400 leading-none mt-0.5">Dentist</p>
+                <p className="text-sm font-medium leading-none">{user?.name || "User"}</p>
+                <p className="text-[11px] text-slate-400 leading-none mt-0.5 capitalize">{user?.role?.replace("_", " ") || ""}</p>
               </div>
               <ChevronDown className="h-4 w-4 text-slate-400 hidden sm:block" />
             </Button>
@@ -95,16 +134,16 @@ export function Header({ onMenuClick }: HeaderProps) {
           <DropdownMenuContent align="end" className="w-48 sm:w-56">
             <DropdownMenuLabel>My Account</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/settings")}>
               <User className="mr-2 h-4 w-4" />
               Profile
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/settings")}>
               <Settings className="mr-2 h-4 w-4" />
               Settings
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-rose-500 dark:text-rose-400">
+            <DropdownMenuItem onClick={handleLogout} className="text-rose-500 dark:text-rose-400">
               <LogOut className="mr-2 h-4 w-4" />
               Log out
             </DropdownMenuItem>
@@ -113,15 +152,4 @@ export function Header({ onMenuClick }: HeaderProps) {
       </div>
     </header>
   )
-}
-
-function dotClass(type: string) {
-  const base = "mt-0.5 h-2 w-2 rounded-full shrink-0"
-  const colors: Record<string, string> = {
-    info: "bg-blue-500",
-    warning: "bg-amber-500",
-    success: "bg-emerald-500",
-    error: "bg-rose-500",
-  }
-  return `${base} ${colors[type] || "bg-slate-400"}`
 }

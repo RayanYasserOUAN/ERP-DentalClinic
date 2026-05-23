@@ -1,20 +1,47 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { Plus, Search, Users, Briefcase, Clock, UserCheck } from "lucide-react"
+import { Plus, Search, Users, Briefcase, Clock, UserCheck, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { mockStaff } from "@/lib/data"
 import { getInitials, formatCurrency } from "@/lib/utils"
+import { staffApi } from "@/lib/api"
 
 export default function HRPage() {
-  const activeStaff = mockStaff.filter((s) => s.status === "active")
-  const onLeave = mockStaff.filter((s) => s.status === "on_leave")
-  const totalSalary = mockStaff.reduce((s, m) => s + m.salary, 0)
+  const [staff, setStaff] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function loadStaff() {
+      try {
+        const result = await staffApi.list()
+        setStaff(result.data)
+      } catch (err) {
+        console.error("Failed to load staff:", err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadStaff()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-teal-500" />
+      </div>
+    )
+  }
+
+  const activeStaff = staff.filter((s: any) => s.status === "active")
+  const onLeave = staff.filter((s: any) => s.status === "on_leave")
+  const totalSalary = staff.reduce((s: number, m: any) => s + m.salary, 0)
+  const dentists = staff.filter((s: any) => s.role === "dentist")
 
   return (
     <div className="space-y-6">
@@ -41,7 +68,7 @@ export default function HRPage() {
             </div>
             <div>
               <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Total Staff</p>
-              <p className="text-xl font-bold font-heading text-slate-900 dark:text-white">{mockStaff.length}</p>
+              <p className="text-xl font-bold font-heading text-slate-900 dark:text-white">{staff.length}</p>
             </div>
           </CardContent>
         </Card>
@@ -99,7 +126,7 @@ export default function HRPage() {
 
         <TabsContent value="all" className="mt-4">
           <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-            {mockStaff.map((member, i) => (
+            {staff.map((member: any, i: number) => (
               <motion.div
                 key={member.id}
                 initial={{ opacity: 0, y: 20 }}
@@ -129,11 +156,11 @@ export default function HRPage() {
                 <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 grid grid-cols-2 gap-3 text-sm">
                   <div>
                     <p className="text-xs text-slate-400">Department</p>
-                    <p className="text-sm text-slate-700 dark:text-slate-300">{member.department}</p>
+                    <p className="text-sm text-slate-700 dark:text-slate-300">{member.department || "-"}</p>
                   </div>
                   <div>
                     <p className="text-xs text-slate-400">Shift</p>
-                    <p className="text-sm text-slate-700 dark:text-slate-300">{member.shift}</p>
+                    <p className="text-sm text-slate-700 dark:text-slate-300">{member.shift || "-"}</p>
                   </div>
                   <div>
                     <p className="text-xs text-slate-400">Salary</p>
@@ -141,7 +168,7 @@ export default function HRPage() {
                   </div>
                   <div>
                     <p className="text-xs text-slate-400">Joined</p>
-                    <p className="text-sm text-slate-700 dark:text-slate-300">{member.joinDate}</p>
+                    <p className="text-sm text-slate-700 dark:text-slate-300">{member.joinDate || "-"}</p>
                   </div>
                 </div>
               </motion.div>
@@ -151,7 +178,7 @@ export default function HRPage() {
 
         <TabsContent value="dentists" className="mt-4">
           <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-            {mockStaff.filter(s => s.role === "dentist").map((dentist) => (
+            {dentists.map((dentist: any) => (
               <div key={dentist.id} className="p-5 rounded-2xl border border-teal-200 dark:border-teal-900/50 bg-gradient-to-br from-teal-50/50 to-transparent dark:from-teal-950/20 dark:to-transparent">
                 <div className="flex items-center gap-3">
                   <Avatar className="h-12 w-12">
@@ -161,11 +188,11 @@ export default function HRPage() {
                   </Avatar>
                   <div>
                     <p className="font-medium text-slate-900 dark:text-white">{dentist.name}</p>
-                    <p className="text-xs text-slate-400">{dentist.department}</p>
+                    <p className="text-xs text-slate-400">{dentist.department || "General"}</p>
                   </div>
                 </div>
                 <div className="mt-3 text-sm text-slate-500">
-                  <p>Shift: {dentist.shift} · Salary: {formatCurrency(dentist.salary)}/yr</p>
+                  <p>Shift: {dentist.shift || "Various"} · Salary: {formatCurrency(dentist.salary)}/yr</p>
                 </div>
               </div>
             ))}

@@ -1,14 +1,15 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { Plus, Download, Search } from "lucide-react"
+import { Plus, Download, Search, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { mockInvoices } from "@/lib/data"
 import { formatCurrency, formatDate } from "@/lib/utils"
+import { billingApi } from "@/lib/api"
 
 const statusColors: Record<string, "success" | "warning" | "destructive" | "info" | "default"> = {
   paid: "success",
@@ -20,9 +21,39 @@ const statusColors: Record<string, "success" | "warning" | "destructive" | "info
 }
 
 export default function BillingPage() {
-  const totalRevenue = mockInvoices.reduce((s, i) => s + i.total, 0)
-  const totalPaid = mockInvoices.reduce((s, i) => s + i.paid, 0)
-  const totalPending = mockInvoices.filter(i => i.status === "pending" || i.status === "overdue").reduce((s, i) => s + i.total - i.paid, 0)
+  const [invoices, setInvoices] = useState<any[]>([])
+  const [summary, setSummary] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function loadBilling() {
+      try {
+        const [invResult, summaryResult] = await Promise.all([
+          billingApi.list({ limit: 100 }),
+          billingApi.summary(),
+        ])
+        setInvoices(invResult.data)
+        setSummary(summaryResult.data)
+      } catch (err) {
+        console.error("Failed to load billing data:", err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadBilling()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-teal-500" />
+      </div>
+    )
+  }
+
+  const totalRevenue = invoices.reduce((s: number, i: any) => s + i.total, 0)
+  const totalPaid = invoices.reduce((s: number, i: any) => s + i.paid, 0)
+  const totalPending = invoices.filter((i: any) => i.status === "pending" || i.status === "overdue").reduce((s: number, i: any) => s + i.total - i.paid, 0)
 
   return (
     <div className="space-y-6">
@@ -104,7 +135,7 @@ export default function BillingPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {mockInvoices.map((inv, i) => (
+                    {invoices.map((inv: any, i: number) => (
                       <motion.tr
                         key={inv.id}
                         initial={{ opacity: 0, y: 10 }}
@@ -115,11 +146,11 @@ export default function BillingPage() {
                         <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-mono font-medium text-slate-900 dark:text-white">{inv.invoiceNumber}</td>
                         <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-slate-600 dark:text-slate-300">{inv.patientName}</td>
                         <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-slate-500 hidden sm:table-cell">{formatDate(inv.createdAt)}</td>
-                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-slate-500 hidden md:table-cell">{inv.items.length}</td>
+                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-slate-500 hidden md:table-cell">{inv.items?.length || 0}</td>
                         <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-medium text-slate-900 dark:text-white">{formatCurrency(inv.total)}</td>
                         <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-emerald-600 dark:text-emerald-400 hidden sm:table-cell">{formatCurrency(inv.paid)}</td>
                         <td className="px-3 sm:px-6 py-3 sm:py-4">
-                          <Badge variant={statusColors[inv.status]} className="text-[10px] sm:text-xs">{inv.status}</Badge>
+                          <Badge variant={statusColors[inv.status] || "default"} className="text-[10px] sm:text-xs">{inv.status}</Badge>
                         </td>
                         <td className="px-3 sm:px-6 py-3 sm:py-4">
                           <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8">

@@ -2,21 +2,36 @@
 
 import { useState } from "react"
 import { motion } from "framer-motion"
-import { Stethoscope, Eye, EyeOff, ArrowRight } from "lucide-react"
+import { Stethoscope, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
+import { useAuth } from "@/lib/auth-context"
 
 export default function LoginPage() {
+  const router = useRouter()
+  const { login } = useAuth()
   const [showPassword, setShowPassword] = useState(false)
   const [email, setEmail] = useState("admin@dentflow.com")
   const [password, setPassword] = useState("password")
+  const [error, setError] = useState("")
+  const [loading, setLoading] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    window.location.href = "/dashboard"
+    setError("")
+    setLoading(true)
+    try {
+      await login(email, password)
+      router.push("/dashboard")
+    } catch (err: any) {
+      setError(err.message || "Login failed. Please check your credentials.")
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -136,9 +151,18 @@ export default function LoginPage() {
                 </div>
               </div>
 
-              <Button type="submit" className="w-full h-11 text-base">
-                Sign In
-                <ArrowRight className="ml-2 h-4 w-4" />
+              {error && (
+                <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50">
+                  <p className="text-xs sm:text-sm text-rose-600 dark:text-rose-400">{error}</p>
+                </div>
+              )}
+
+              <Button type="submit" className="w-full h-11 text-base" disabled={loading}>
+                {loading ? (
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Signing In...</>
+                ) : (
+                  <><span>Sign In</span><ArrowRight className="ml-2 h-4 w-4" /></>
+                )}
               </Button>
             </form>
 

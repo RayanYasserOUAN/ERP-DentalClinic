@@ -1,18 +1,44 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
-import { Plus, Search, AlertTriangle, Package } from "lucide-react"
+import { Plus, Search, AlertTriangle, Package, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
-import { mockInventory } from "@/lib/data"
 import { formatCurrency, cn } from "@/lib/utils"
+import { inventoryApi } from "@/lib/api"
 
 export default function InventoryPage() {
-  const lowStock = mockInventory.filter((i) => i.quantity <= i.minQuantity)
-  const totalValue = mockInventory.reduce((s, i) => s + i.quantity * i.unitPrice, 0)
+  const [items, setItems] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function loadInventory() {
+      try {
+        const result = await inventoryApi.list({ limit: 100 })
+        setItems(result.data)
+      } catch (err) {
+        console.error("Failed to load inventory:", err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadInventory()
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-teal-500" />
+      </div>
+    )
+  }
+
+  const lowStock = items.filter((i: any) => i.quantity <= i.minQuantity)
+  const totalValue = items.reduce((s: number, i: any) => s + i.quantity * i.unitPrice, 0)
 
   return (
     <div className="space-y-6">
@@ -39,7 +65,7 @@ export default function InventoryPage() {
             </div>
             <div>
               <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Total Items</p>
-              <p className="text-xl font-bold font-heading text-slate-900 dark:text-white">{mockInventory.length}</p>
+              <p className="text-xl font-bold font-heading text-slate-900 dark:text-white">{items.length}</p>
             </div>
           </CardContent>
         </Card>
@@ -98,7 +124,7 @@ export default function InventoryPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {mockInventory.map((item, i) => (
+                    {items.map((item: any, i: number) => (
                       <motion.tr
                         key={item.id}
                         initial={{ opacity: 0, y: 10 }}
@@ -143,7 +169,7 @@ export default function InventoryPage() {
             <CardContent className="p-6">
               {lowStock.length > 0 ? (
                 <div className="grid gap-3">
-                  {lowStock.map((item) => (
+                  {lowStock.map((item: any) => (
                     <div key={item.id} className="flex items-center justify-between p-4 rounded-xl border border-rose-200 dark:border-rose-900/50 bg-rose-50/50 dark:bg-rose-950/20">
                       <div className="flex items-center gap-3">
                         <AlertTriangle className="h-5 w-5 text-rose-500" />

@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import { Outfit, DM_Sans } from "next/font/google"
 import "./globals.css"
-import { ThemeProvider } from "@/components/theme-provider"
+import { Providers } from "@/components/providers"
 
 const outfit = Outfit({
   subsets: ["latin"],
@@ -29,9 +29,9 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning className={`${outfit.variable} ${dmSans.variable}`}>
       <body className="min-h-screen antialiased">
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+        <Providers>
           {children}
-        </ThemeProvider>
+        </Providers>
       </body>
     </html>
   )
