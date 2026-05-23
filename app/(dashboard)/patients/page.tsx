@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Label } from "@/components/ui/label"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,6 +17,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { getInitials, formatDate, formatCurrency } from "@/lib/utils"
 import { patientsApi } from "@/lib/api"
 import Link from "next/link"
@@ -25,23 +27,43 @@ export default function PatientsPage() {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [filterVip, setFilterVip] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  const [form, setForm] = useState({ name: "", gender: "male", dateOfBirth: "", phone: "", email: "", address: "", bloodGroup: "", notes: "", vip: false })
 
   useEffect(() => {
-    async function loadPatients() {
-      try {
-        const params: Record<string, string | number | boolean> = { limit: 100 }
-        if (searchQuery) params.search = searchQuery
-        if (filterVip) params.vip = true
-        const result = await patientsApi.list(params)
-        setPatients(result.data)
-      } catch (err) {
-        console.error("Failed to load patients:", err)
-      } finally {
-        setLoading(false)
-      }
-    }
     loadPatients()
   }, [searchQuery, filterVip])
+
+  async function loadPatients() {
+    try {
+      const params: Record<string, string | number | boolean> = { limit: 100 }
+      if (searchQuery) params.search = searchQuery
+      if (filterVip) params.vip = true
+      const result = await patientsApi.list(params)
+      setPatients(result.data)
+    } catch (err) {
+      console.error("Failed to load patients:", err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleAddPatient(e: React.FormEvent) {
+    e.preventDefault()
+    setSaving(true)
+    try {
+      await patientsApi.create(form)
+      setDialogOpen(false)
+      setForm({ name: "", gender: "male", dateOfBirth: "", phone: "", email: "", address: "", bloodGroup: "", notes: "", vip: false })
+      await loadPatients()
+    } catch (err: any) {
+      console.error("Failed to create patient:", err)
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -56,10 +78,71 @@ export default function PatientsPage() {
             Manage patient records, history, and profiles.
           </p>
         </div>
-        <Button size="default" className="h-9 sm:h-10">
-          <Plus className="mr-2 h-4 w-4" />
-          Add Patient
-        </Button>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button size="default" className="h-9 sm:h-10">
+              <Plus className="mr-2 h-4 w-4" />
+              Add Patient
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add Patient</DialogTitle>
+              <DialogDescription>Enter the patient details below.</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleAddPatient} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Full name</Label>
+                  <Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="John Doe" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Gender</Label>
+                  <select className="flex h-9 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-transparent px-3 text-sm" value={form.gender} onChange={(e) => setForm({ ...form, gender: e.target.value })}>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Date of birth</Label>
+                  <Input type="date" required value={form.dateOfBirth} onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Phone</Label>
+                  <Input required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+1-555-0100" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Email</Label>
+                <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="patient@email.com" />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Address</Label>
+                <Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="123 Main St" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Blood group</Label>
+                  <Input value={form.bloodGroup} onChange={(e) => setForm({ ...form, bloodGroup: e.target.value })} placeholder="A+" />
+                </div>
+                <div className="flex items-end pb-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={form.vip} onChange={(e) => setForm({ ...form, vip: e.target.checked })} className="rounded border-slate-300" />
+                    <span className="text-sm text-slate-700 dark:text-slate-300">VIP patient</span>
+                  </label>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+                <Button type="submit" disabled={saving}>
+                  {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : "Save Patient"}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
       </motion.div>
 
       <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -79,12 +162,7 @@ export default function PatientsPage() {
           onClick={() => setFilterVip(!filterVip)}
         >
           <Star className="mr-1.5 h-3.5 w-3.5" />
-          <span className="hidden xs:inline">VIP Only</span>
-          <span className="xs:hidden">VIP</span>
-        </Button>
-        <Button variant="outline" size="sm" className="text-xs sm:text-sm">
-          <Filter className="mr-1.5 h-3.5 w-3.5" />
-          Filter
+          VIP Only
         </Button>
       </div>
 
@@ -141,7 +219,7 @@ export default function PatientsPage() {
                                   {patient.name}
                                   {patient.vip && <Star className="h-3 w-3 shrink-0 fill-amber-400 text-amber-400" />}
                                 </p>
-                                <p className="text-xs text-slate-400 truncate capitalize">{patient.gender} · {patient.dateOfBirth}</p>
+                                <p className="text-xs text-slate-400 truncate capitalize">{patient.gender} · {patient.date_of_birth?.slice(0, 10) || patient.dateOfBirth}</p>
                               </div>
                             </Link>
                           </td>
@@ -156,16 +234,16 @@ export default function PatientsPage() {
                             </div>
                           </td>
                           <td className="px-3 sm:px-6 py-3 sm:py-4 hidden sm:table-cell">
-                            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{patient.bloodGroup || "—"}</span>
+                            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{patient.blood_group || patient.bloodGroup || "—"}</span>
                           </td>
                           <td className="px-3 sm:px-6 py-3 sm:py-4 hidden lg:table-cell">
-                            <span className="text-sm text-slate-500">{patient.lastVisit ? formatDate(patient.lastVisit) : "N/A"}</span>
+                            <span className="text-sm text-slate-500">{patient.last_visit ? formatDate(patient.last_visit) : patient.lastVisit ? formatDate(patient.lastVisit) : "N/A"}</span>
                           </td>
                           <td className="px-3 sm:px-6 py-3 sm:py-4">
-                            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{patient.totalVisits}</span>
+                            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{patient.total_visits || patient.totalVisits}</span>
                           </td>
                           <td className="px-3 sm:px-6 py-3 sm:py-4 hidden sm:table-cell">
-                            <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">{formatCurrency(patient.totalSpent)}</span>
+                            <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">{formatCurrency(patient.total_spent || patient.totalSpent)}</span>
                           </td>
                           <td className="px-3 sm:px-6 py-3 sm:py-4 hidden xl:table-cell">
                             <div className="flex flex-wrap gap-1">
@@ -210,7 +288,7 @@ export default function PatientsPage() {
                 </div>
               ) : (
                 <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                  {[...patients].sort((a: any, b: any) => new Date(b.lastVisit || "").getTime() - new Date(a.lastVisit || "").getTime()).slice(0, 6).map((patient: any) => (
+                  {[...patients].sort((a: any, b: any) => new Date(b.last_visit || b.lastVisit || "").getTime() - new Date(a.last_visit || a.lastVisit || "").getTime()).slice(0, 6).map((patient: any) => (
                     <Link key={patient.id} href={`/patients/${patient.id}`}>
                       <div className="flex items-center gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-700 hover:shadow-md hover:border-teal-200 dark:hover:border-teal-900/50 transition-all duration-200">
                         <Avatar className="h-12 w-12">
@@ -218,8 +296,8 @@ export default function PatientsPage() {
                         </Avatar>
                         <div>
                           <p className="font-medium text-slate-900 dark:text-white">{patient.name}</p>
-                          <p className="text-xs text-slate-400">Last visit: {patient.lastVisit ? formatDate(patient.lastVisit) : "Never"}</p>
-                          <p className="text-xs text-teal-600 dark:text-teal-400 mt-0.5">{formatCurrency(patient.totalSpent)} total</p>
+                          <p className="text-xs text-slate-400">Last visit: {patient.last_visit ? formatDate(patient.last_visit) : patient.lastVisit ? formatDate(patient.lastVisit) : "Never"}</p>
+                          <p className="text-xs text-teal-600 dark:text-teal-400 mt-0.5">{formatCurrency(patient.total_spent || patient.totalSpent)} total</p>
                         </div>
                       </div>
                     </Link>
@@ -250,7 +328,7 @@ export default function PatientsPage() {
                           <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
                         </p>
                         <p className="text-xs text-slate-400">{patient.phone}</p>
-                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">{patient.totalVisits} visits</p>
+                        <p className="text-xs text-amber-600 dark:text-amber-400 mt-0.5">{patient.total_visits || patient.totalVisits} visits</p>
                       </div>
                     </div>
                   ))}

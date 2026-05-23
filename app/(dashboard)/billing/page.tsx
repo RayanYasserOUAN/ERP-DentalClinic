@@ -7,9 +7,11 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Label } from "@/components/ui/label"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { formatCurrency, formatDate } from "@/lib/utils"
-import { billingApi } from "@/lib/api"
+import { billingApi, patientsApi } from "@/lib/api"
 
 const statusColors: Record<string, "success" | "warning" | "destructive" | "info" | "default"> = {
   paid: "success",
@@ -22,18 +24,21 @@ const statusColors: Record<string, "success" | "warning" | "destructive" | "info
 
 export default function BillingPage() {
   const [invoices, setInvoices] = useState<any[]>([])
-  const [summary, setSummary] = useState<any>(null)
+  const [patients, setPatients] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({ patientId: "", total: "", dueDate: "", notes: "" })
 
   useEffect(() => {
     async function loadBilling() {
       try {
-        const [invResult, summaryResult] = await Promise.all([
+        const [invResult, patResult] = await Promise.all([
           billingApi.list({ limit: 100 }),
-          billingApi.summary(),
+          patientsApi.list({ limit: 200 }),
         ])
         setInvoices(invResult.data)
-        setSummary(summaryResult.data)
+        setPatients(patResult.data)
       } catch (err) {
         console.error("Failed to load billing data:", err)
       } finally {
@@ -42,6 +47,32 @@ export default function BillingPage() {
     }
     loadBilling()
   }, [])
+
+  async function handleCreateInvoice(e: React.FormEvent) {
+    e.preventDefault()
+    setSaving(true)
+    try {
+      await billingApi.create({
+        patientId: form.patientId,
+        total: parseFloat(form.total),
+        dueDate: form.dueDate,
+        notes: form.notes,
+        subtotal: parseFloat(form.total),
+        tax: 0,
+        discount: 0,
+        paid: 0,
+        status: "pending",
+      })
+      setDialogOpen(false)
+      setForm({ patientId: "", total: "", dueDate: "", notes: "" })
+      const result = await billingApi.list({ limit: 100 })
+      setInvoices(result.data)
+    } catch (err: any) {
+      console.error("Failed to create invoice:", err)
+    } finally {
+      setSaving(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -67,15 +98,47 @@ export default function BillingPage() {
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5 sm:mt-1">Manage invoices, payments, and financial records.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="h-9 sm:h-10">
-            <Download className="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
-            <span className="hidden xs:inline">Export</span>
-          </Button>
-          <Button size="sm" className="h-9 sm:h-10">
-            <Plus className="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
-            <span className="hidden xs:inline">New Invoice</span>
-            <span className="xs:hidden">New</span>
-          </Button>
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" className="h-9 sm:h-10">
+                <Plus className="mr-1.5 sm:mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                New Invoice
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>New Invoice</DialogTitle>
+                <DialogDescription>Create a new invoice for a patient.</DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleCreateInvoice} className="space-y-4">
+                <div className="space-y-1.5">
+                  <Label>Patient</Label>
+                  <select className="flex h-9 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-transparent px-3 text-sm" required value={form.patientId} onChange={(e) => setForm({ ...form, patientId: e.target.value })}>
+                    <option value="">Select patient</option>
+                    {patients.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Total amount ($)</Label>
+                  <Input type="number" step="0.01" min="0" required value={form.total} onChange={(e) => setForm({ ...form, total: e.target.value })} placeholder="0.00" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Due date</Label>
+                  <Input type="date" required value={form.dueDate} onChange={(e) => setForm({ ...form, dueDate: e.target.value })} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Notes (optional)</Label>
+                  <Input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Invoice notes..." />
+                </div>
+                <div className="flex justify-end gap-3 pt-2">
+                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+                  <Button type="submit" disabled={saving}>
+                    {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Creating...</> : "Create Invoice"}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
         </div>
       </motion.div>
 
@@ -100,13 +163,6 @@ export default function BillingPage() {
         </Card>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-        <div className="relative flex-1 min-w-[160px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <Input placeholder="Search invoices..." className="pl-10 h-9 sm:h-10" />
-        </div>
-      </div>
-
       <Tabs defaultValue="all">
         <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
           <TabsList className="w-max sm:w-auto">
@@ -127,11 +183,9 @@ export default function BillingPage() {
                       <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wider px-3 sm:px-6 py-3 sm:py-4">Invoice</th>
                       <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wider px-3 sm:px-6 py-3 sm:py-4">Patient</th>
                       <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wider px-3 sm:px-6 py-3 sm:py-4 hidden sm:table-cell">Date</th>
-                      <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wider px-3 sm:px-6 py-3 sm:py-4 hidden md:table-cell">Items</th>
                       <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wider px-3 sm:px-6 py-3 sm:py-4">Total</th>
                       <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wider px-3 sm:px-6 py-3 sm:py-4 hidden sm:table-cell">Paid</th>
                       <th className="text-left text-xs font-medium text-slate-400 uppercase tracking-wider px-3 sm:px-6 py-3 sm:py-4">Status</th>
-                      <th className="w-12 px-3 sm:px-6 py-3 sm:py-4"></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -146,16 +200,10 @@ export default function BillingPage() {
                         <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-mono font-medium text-slate-900 dark:text-white">{inv.invoiceNumber}</td>
                         <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-slate-600 dark:text-slate-300">{inv.patientName}</td>
                         <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-slate-500 hidden sm:table-cell">{formatDate(inv.createdAt)}</td>
-                        <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-slate-500 hidden md:table-cell">{inv.items?.length || 0}</td>
                         <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm font-medium text-slate-900 dark:text-white">{formatCurrency(inv.total)}</td>
                         <td className="px-3 sm:px-6 py-3 sm:py-4 text-xs sm:text-sm text-emerald-600 dark:text-emerald-400 hidden sm:table-cell">{formatCurrency(inv.paid)}</td>
                         <td className="px-3 sm:px-6 py-3 sm:py-4">
                           <Badge variant={statusColors[inv.status] || "default"} className="text-[10px] sm:text-xs">{inv.status}</Badge>
-                        </td>
-                        <td className="px-3 sm:px-6 py-3 sm:py-4">
-                          <Button variant="ghost" size="icon" className="h-7 w-7 sm:h-8 sm:w-8">
-                            <Download className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                          </Button>
                         </td>
                       </motion.tr>
                     ))}
@@ -164,16 +212,6 @@ export default function BillingPage() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="pending">
-          <Card><CardContent className="p-6"><p className="text-sm text-slate-400 text-center py-4">Filtered pending invoices view</p></CardContent></Card>
-        </TabsContent>
-        <TabsContent value="paid">
-          <Card><CardContent className="p-6"><p className="text-sm text-slate-400 text-center py-4">Filtered paid invoices view</p></CardContent></Card>
-        </TabsContent>
-        <TabsContent value="overdue">
-          <Card><CardContent className="p-6"><p className="text-sm text-slate-400 text-center py-4">Filtered overdue invoices view</p></CardContent></Card>
         </TabsContent>
       </Tabs>
     </div>

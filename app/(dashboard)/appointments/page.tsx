@@ -6,10 +6,13 @@ import { Plus, ChevronLeft, ChevronRight, CalendarDays, Clock, Loader2 } from "l
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
+import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { getInitials } from "@/lib/utils"
-import { appointmentsApi } from "@/lib/api"
+import { appointmentsApi, patientsApi, staffApi } from "@/lib/api"
 
 const statusColors: Record<string, "primary" | "warning" | "success" | "info" | "destructive" | "default"> = {
   booked: "default",
@@ -23,21 +26,48 @@ const statusColors: Record<string, "primary" | "warning" | "success" | "info" | 
 
 export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<any[]>([])
+  const [patients, setPatients] = useState<any[]>([])
+  const [dentists, setDentists] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [dialogOpen, setDialogOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({ patientId: "", dentistId: "", date: "", startTime: "", endTime: "", type: "checkup", notes: "" })
 
   useEffect(() => {
-    async function loadAppointments() {
+    async function load() {
       try {
-        const result = await appointmentsApi.list({ limit: 100 })
-        setAppointments(result.data)
+        const [apptRes, patRes, dentRes] = await Promise.all([
+          appointmentsApi.list({ limit: 100 }),
+          patientsApi.list({ limit: 200 }),
+          staffApi.dentists(),
+        ])
+        setAppointments(apptRes.data)
+        setPatients(patRes.data)
+        setDentists(dentRes.data)
       } catch (err) {
-        console.error("Failed to load appointments:", err)
+        console.error("Failed to load:", err)
       } finally {
         setLoading(false)
       }
     }
-    loadAppointments()
+    load()
   }, [])
+
+  async function handleCreateAppointment(e: React.FormEvent) {
+    e.preventDefault()
+    setSaving(true)
+    try {
+      await appointmentsApi.create({ ...form, branchId: null, status: "booked" })
+      setDialogOpen(false)
+      setForm({ patientId: "", dentistId: "", date: "", startTime: "", endTime: "", type: "checkup", notes: "" })
+      const result = await appointmentsApi.list({ limit: 100 })
+      setAppointments(result.data)
+    } catch (err: any) {
+      console.error("Failed to create appointment:", err)
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const todayDate = new Date().toISOString().split("T")[0]
   const todayApps = appointments.filter((a) => a.date === todayDate)
@@ -63,10 +93,71 @@ export default function AppointmentsPage() {
           <h1 className="text-xl sm:text-2xl font-bold font-heading text-slate-900 dark:text-white">Appointments</h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5 sm:mt-1">Schedule and manage patient appointments.</p>
         </div>
-        <Button size="default" className="h-9 sm:h-10 w-full sm:w-auto">
-          <Plus className="mr-2 h-4 w-4" />
-          New Appointment
-        </Button>
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button size="default" className="h-9 sm:h-10 w-full sm:w-auto">
+              <Plus className="mr-2 h-4 w-4" />
+              New Appointment
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>New Appointment</DialogTitle>
+              <DialogDescription>Schedule a new patient appointment.</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleCreateAppointment} className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>Patient</Label>
+                <select className="flex h-9 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-transparent px-3 text-sm" required value={form.patientId} onChange={(e) => setForm({ ...form, patientId: e.target.value })}>
+                  <option value="">Select patient</option>
+                  {patients.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Dentist</Label>
+                <select className="flex h-9 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-transparent px-3 text-sm" required value={form.dentistId} onChange={(e) => setForm({ ...form, dentistId: e.target.value })}>
+                  <option value="">Select dentist</option>
+                  {dentists.map((d: any) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Date</Label>
+                  <Input type="date" required value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Type</Label>
+                  <select className="flex h-9 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-transparent px-3 text-sm" value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
+                    <option value="checkup">Checkup</option>
+                    <option value="cleaning">Cleaning</option>
+                    <option value="filling">Filling</option>
+                    <option value="extraction">Extraction</option>
+                    <option value="root_canal">Root Canal</option>
+                    <option value="crown">Crown</option>
+                    <option value="consultation">Consultation</option>
+                    <option value="emergency">Emergency</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label>Start time</Label>
+                  <Input type="time" required value={form.startTime} onChange={(e) => setForm({ ...form, startTime: e.target.value })} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>End time</Label>
+                  <Input type="time" required value={form.endTime} onChange={(e) => setForm({ ...form, endTime: e.target.value })} />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+                <Button type="submit" disabled={saving}>
+                  {saving ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Saving...</> : "Create Appointment"}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
       </motion.div>
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 sm:p-4">
@@ -76,9 +167,6 @@ export default function AppointmentsPage() {
             {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
           </span>
         </div>
-        <Button variant="outline" size="sm" className="self-end sm:self-auto">
-          Today
-        </Button>
       </div>
 
       <Tabs defaultValue="list">
@@ -180,3 +268,4 @@ export default function AppointmentsPage() {
     </div>
   )
 }
+
