@@ -1,9 +1,10 @@
 import { query } from "@/lib/db"
 import { success, requireAuth, handleApiError } from "@/lib/api-helpers"
+import logger from "@/lib/logger"
 
 export async function GET() {
   try {
-    await requireAuth()
+    const session = await requireAuth()
     const today = new Date().toISOString().split("T")[0]
     const result = await query(
       `SELECT a.*, p.name as patient_name, u.name as dentist_name
@@ -28,6 +29,7 @@ export async function GET() {
       room: r.room,
     }))
 
+    logger.info({ event: "TODAY_APPOINTMENTS_VIEWED", userId: session.user.id, count: mapped.length })
     return success(mapped)
   } catch (err) {
     return handleApiError(err)

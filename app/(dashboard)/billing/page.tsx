@@ -12,6 +12,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { formatCurrency, formatDate } from "@/lib/utils"
 import { billingApi, patientsApi } from "@/lib/api"
+import { logClientError } from "@/lib/client-logger"
 
 const statusColors: Record<string, "success" | "warning" | "destructive" | "info" | "default"> = {
   paid: "success",
@@ -40,7 +41,7 @@ export default function BillingPage() {
         setInvoices(invResult.data)
         setPatients(patResult.data)
       } catch (err) {
-        console.error("Failed to load billing data:", err)
+        logClientError("Failed to load billing data", err)
       } finally {
         setLoading(false)
       }
@@ -68,7 +69,7 @@ export default function BillingPage() {
       const result = await billingApi.list({ limit: 100 })
       setInvoices(result.data)
     } catch (err: any) {
-      console.error("Failed to create invoice:", err)
+      logClientError("Failed to create invoice", err)
     } finally {
       setSaving(false)
     }

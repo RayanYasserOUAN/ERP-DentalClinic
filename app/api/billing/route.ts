@@ -1,10 +1,12 @@
 import { NextRequest } from "next/server"
 import { query } from "@/lib/db"
 import { success, requireAuth, handleApiError } from "@/lib/api-helpers"
+import logger from "@/lib/logger"
+import { auditLog } from "@/lib/audit"
 
 export async function GET(req: NextRequest) {
   try {
-    await requireAuth()
+    const session = await requireAuth()
     const { searchParams } = new URL(req.url)
     const limit = parseInt(searchParams.get("limit") || "50")
     const offset = parseInt(searchParams.get("offset") || "0")
@@ -36,6 +38,7 @@ export async function GET(req: NextRequest) {
       updatedAt: r.updated_at,
     }))
 
+    logger.info({ event: "INVOICES_LISTED", userId: session.user.id, count: mapped.length })
     return success(mapped)
   } catch (err) {
     return handleApiError(err)
@@ -44,13 +47,15 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    await requireAuth()
+    const session = await requireAuth()
     const body = await req.json()
     const result = await query(
       `INSERT INTO invoices (patient_id, invoice_number, subtotal, discount, tax, total, paid, status, due_date, notes)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
       [body.patientId, body.invoiceNumber || `INV-${Date.now()}`, body.subtotal || 0, body.discount || 0, body.tax || 0, body.total || 0, body.paid || 0, body.status || "pending", body.dueDate, body.notes || null]
     )
+    logger.info({ event: "INVOICE_CREATED", userId: session.user.id, invoiceId: result.rows[0].id, total: body.total })
+    auditLog({ userId: session.user.id, action: "create", entityType: "invoice", entityId: result.rows[0].id, details: { total: body.total, status: body.status } }).catch(() => {})
     return success(result.rows[0], 201)
   } catch (err) {
     return handleApiError(err)

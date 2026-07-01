@@ -11,6 +11,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { getInitials, formatCurrency } from "@/lib/utils"
 import { staffApi } from "@/lib/api"
+import { logClientError } from "@/lib/client-logger"
 
 export default function HRPage() {
   const [staff, setStaff] = useState<any[]>([])
@@ -22,7 +23,7 @@ export default function HRPage() {
         const result = await staffApi.list()
         setStaff(result.data)
       } catch (err) {
-        console.error("Failed to load staff:", err)
+        logClientError("Failed to load staff", err)
       } finally {
         setLoading(false)
       }

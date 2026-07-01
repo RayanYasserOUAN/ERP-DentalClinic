@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server"
 import { query } from "@/lib/db"
 import { success, error, requireAuth, handleApiError } from "@/lib/api-helpers"
+import logger from "@/lib/logger"
+import { auditLog } from "@/lib/audit"
 
 export async function GET(_req: NextRequest, ctx: RouteContext<"/api/appointments/[id]">) {
   try {
@@ -25,7 +27,7 @@ export async function GET(_req: NextRequest, ctx: RouteContext<"/api/appointment
 
 export async function PUT(req: NextRequest, ctx: RouteContext<"/api/appointments/[id]">) {
   try {
-    await requireAuth()
+    const session = await requireAuth()
     const { id } = await ctx.params
     const body = await req.json()
     const result = await query(
@@ -37,6 +39,7 @@ export async function PUT(req: NextRequest, ctx: RouteContext<"/api/appointments
     if (result.rows.length === 0) {
       return error("NOT_FOUND", "Appointment not found", 404)
     }
+    logger.info({ event: "APPOINTMENT_UPDATED", userId: session.user.id, appointmentId: id, status: body.status })
     return success(result.rows[0])
   } catch (err) {
     return handleApiError(err)
@@ -45,12 +48,14 @@ export async function PUT(req: NextRequest, ctx: RouteContext<"/api/appointments
 
 export async function DELETE(_req: NextRequest, ctx: RouteContext<"/api/appointments/[id]">) {
   try {
-    await requireAuth()
+    const session = await requireAuth()
     const { id } = await ctx.params
     const result = await query("DELETE FROM appointments WHERE id = $1 RETURNING id", [id])
     if (result.rows.length === 0) {
       return error("NOT_FOUND", "Appointment not found", 404)
     }
+    logger.info({ event: "APPOINTMENT_DELETED", userId: session.user.id, appointmentId: id })
+    auditLog({ userId: session.user.id, action: "delete", entityType: "appointment", entityId: id }).catch(() => {})
     return success({ id })
   } catch (err) {
     return handleApiError(err)

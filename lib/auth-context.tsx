@@ -56,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setTokens(result.data.accessToken, result.data.refreshToken)
       return result.data.accessToken
     } catch {
+      console.warn("[Auth] Token refresh failed")
       clearTokens()
       setUser(null)
       return null
@@ -74,9 +75,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setTokens(session.access_token, session.refresh_token)
         fetchUserData(session.user.id).then((appData) => {
           setUser(mapUser(session.user, appData))
+          console.info("[Auth] Session restored")
           setLoading(false)
         }).catch(() => {
           setUser(mapUser(session.user))
+          console.warn("[Auth] Session restored without app profile")
           setLoading(false)
         })
       } else {
@@ -100,6 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else if (event === "SIGNED_OUT") {
         clearTokens()
         setUser(null)
+        console.info("[Auth] User signed out")
       }
     })
 
@@ -154,6 +158,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const meResult = await authApi.me()
     setUser(meResult.data)
+    console.info("[Auth] Login successful", { email, role: meResult.data?.role })
   }, [])
 
   const logout = useCallback(async () => {
@@ -161,6 +166,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut()
     clearTokens()
     setUser(null)
+    console.info("[Auth] Logout successful")
   }, [])
 
   const register = useCallback(async (name: string, email: string, password: string) => {
@@ -173,6 +179,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error
 
     await authApi.register({ name, email, password })
+    console.info("[Auth] Registration successful", { email })
   }, [])
 
   return (

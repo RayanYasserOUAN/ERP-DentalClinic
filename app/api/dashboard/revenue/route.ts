@@ -1,11 +1,12 @@
 import { query } from "@/lib/db"
 import { success, requireAuth, handleApiError } from "@/lib/api-helpers"
+import logger from "@/lib/logger"
 
 const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 export async function GET() {
   try {
-    await requireAuth()
+    const session = await requireAuth()
     const result = await query(
       `SELECT
         EXTRACT(MONTH FROM created_at)::int as month_num,
@@ -38,6 +39,7 @@ export async function GET() {
       }
     })
 
+    logger.info({ event: "DASHBOARD_REVENUE_VIEWED", userId: session.user.id })
     return success(data)
   } catch (err) {
     return handleApiError(err)

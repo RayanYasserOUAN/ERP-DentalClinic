@@ -13,6 +13,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { getInitials } from "@/lib/utils"
 import { appointmentsApi, patientsApi, staffApi } from "@/lib/api"
+import { logClientError } from "@/lib/client-logger"
 
 const statusColors: Record<string, "primary" | "warning" | "success" | "info" | "destructive" | "default"> = {
   booked: "default",
@@ -45,7 +46,7 @@ export default function AppointmentsPage() {
         setPatients(patRes.data)
         setDentists(dentRes.data)
       } catch (err) {
-        console.error("Failed to load:", err)
+        logClientError("Failed to load appointments", err)
       } finally {
         setLoading(false)
       }
@@ -63,7 +64,7 @@ export default function AppointmentsPage() {
       const result = await appointmentsApi.list({ limit: 100 })
       setAppointments(result.data)
     } catch (err: any) {
-      console.error("Failed to create appointment:", err)
+      logClientError("Failed to create appointment", err)
     } finally {
       setSaving(false)
     }

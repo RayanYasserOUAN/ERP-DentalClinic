@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { formatCurrency, cn } from "@/lib/utils"
 import { inventoryApi } from "@/lib/api"
+import { logClientError } from "@/lib/client-logger"
 
 export default function InventoryPage() {
   const [items, setItems] = useState<any[]>([])
@@ -21,7 +22,7 @@ export default function InventoryPage() {
         const result = await inventoryApi.list({ limit: 100 })
         setItems(result.data)
       } catch (err) {
-        console.error("Failed to load inventory:", err)
+        logClientError("Failed to load inventory", err)
       } finally {
         setLoading(false)
       }

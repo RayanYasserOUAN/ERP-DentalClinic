@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server"
 import { query } from "@/lib/db"
 import crypto from "crypto"
 import { success, error } from "@/lib/api-helpers"
+import logger from "@/lib/logger"
+import { auditLog } from "@/lib/audit"
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,6 +21,7 @@ export async function POST(req: NextRequest) {
     })
 
     if (authError) {
+      logger.warn("Login failed", { event: "AUTH_LOGIN_FAILURE", email })
       return error("INVALID_CREDENTIALS", authError.message, 401)
     }
 
@@ -49,6 +52,9 @@ export async function POST(req: NextRequest) {
 
       await query("UPDATE users SET last_login = NOW() WHERE id = $1", [user.id])
 
+      logger.info("New user auto-created and logged in", { event: "AUTH_LOGIN_SUCCESS", userId: user.id, email, role: user.role_name })
+      auditLog({ userId: user.id, action: "login", entityType: "user", entityId: user.id }).catch(() => {})
+
       return success({
         user: {
           id: user.id,
@@ -66,6 +72,9 @@ export async function POST(req: NextRequest) {
     const user = userResult.rows[0]
     await query("UPDATE users SET last_login = NOW() WHERE id = $1", [user.id])
 
+    logger.info("User logged in", { event: "AUTH_LOGIN_SUCCESS", userId: user.id, email, role: user.role_name })
+    auditLog({ userId: user.id, action: "login", entityType: "user", entityId: user.id }).catch(() => {})
+
     return success({
       user: {
         id: user.id,
@@ -79,7 +88,7 @@ export async function POST(req: NextRequest) {
       refreshToken: authData.session?.refresh_token,
     })
   } catch (err) {
-    console.error("Login error:", err)
+    logger.error({ event: "AUTH_LOGIN_ERROR", error: err instanceof Error ? err.message : String(err) })
     return error("INTERNAL_ERROR", "An unexpected error occurred", 500)
   }
 }

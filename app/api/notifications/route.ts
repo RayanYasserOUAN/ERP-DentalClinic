@@ -1,6 +1,7 @@
 import { query } from "@/lib/db"
-import { success, requireAuth, handleApiError } from "@/lib/api-helpers"
+import { success, handleApiError } from "@/lib/api-helpers"
 import { createClient } from "@/lib/supabase/server"
+import logger from "@/lib/logger"
 
 export async function GET() {
   try {
@@ -14,6 +15,7 @@ export async function GET() {
       `SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50`,
       [user.id]
     )
+    logger.info({ event: "NOTIFICATIONS_LISTED", userId: user.id, count: result.rows.length })
     return success(result.rows)
   } catch (err) {
     return handleApiError(err)

@@ -57,6 +57,7 @@ interface RequestConfig {
 
 export async function apiRequest<T = unknown>(path: string, config: RequestConfig = {}): Promise<T> {
   const { method = "GET", body, params, headers = {} } = config
+  const start = Date.now()
 
   let url = `${API_BASE}${path}`
 
@@ -88,6 +89,7 @@ export async function apiRequest<T = unknown>(path: string, config: RequestConfi
   })
 
   if (response.status === 401) {
+    console.warn(`[API] Token expired, refreshing... ${method} ${path}`)
     const newToken = await refreshAccessToken()
     if (newToken) {
       requestHeaders["Authorization"] = `Bearer ${newToken}`
@@ -97,6 +99,8 @@ export async function apiRequest<T = unknown>(path: string, config: RequestConfi
         body: body ? JSON.stringify(body) : undefined,
       })
       if (retryResponse.ok) {
+        const duration = Date.now() - start
+        console.info(`[API] ${method} ${path} ${retryResponse.status} (${duration}ms) [refreshed]`)
         return retryResponse.json()
       }
     }
@@ -113,6 +117,9 @@ export async function apiRequest<T = unknown>(path: string, config: RequestConfi
     const err = json.error || { code: "UNKNOWN", message: "Unknown error" }
     throw new ApiError(response.status, err.code, err.message, err.details)
   }
+
+  const duration = Date.now() - start
+  console.info(`[API] ${method} ${path} ${response.status} (${duration}ms)`)
 
   return json
 }

@@ -1,10 +1,11 @@
 import { NextRequest } from "next/server"
 import { query } from "@/lib/db"
 import { success, requireAuth, handleApiError } from "@/lib/api-helpers"
+import logger from "@/lib/logger"
 
 export async function GET(req: NextRequest) {
   try {
-    await requireAuth()
+    const session = await requireAuth()
     const { searchParams } = new URL(req.url)
     const limit = parseInt(searchParams.get("limit") || "50")
     const offset = parseInt(searchParams.get("offset") || "0")
@@ -20,6 +21,7 @@ export async function GET(req: NextRequest) {
       [limit, offset]
     )
 
+    logger.info({ event: "TREATMENTS_LISTED", userId: session.user.id, count: result.rows.length })
     return success(result.rows)
   } catch (err) {
     return handleApiError(err)

@@ -1,9 +1,10 @@
 import { query } from "@/lib/db"
 import { success, requireAuth, handleApiError } from "@/lib/api-helpers"
+import logger from "@/lib/logger"
 
 export async function GET() {
   try {
-    await requireAuth()
+    const session = await requireAuth()
     const today = new Date().toISOString().split("T")[0]
     const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split("T")[0]
     const startOfLastMonth = new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toISOString().split("T")[0]
@@ -25,6 +26,7 @@ export async function GET() {
     const previousRev = parseFloat(lastMonthRev.rows[0].sum)
     const revChange = previousRev > 0 ? Math.round(((currentRev - previousRev) / previousRev) * 100) : 0
 
+    logger.info({ event: "DASHBOARD_STATS_VIEWED", userId: session.user.id })
     return success({
       todaysAppointments: todayApps.rows[0].count,
       totalPatients: totalPatients.rows[0].count,

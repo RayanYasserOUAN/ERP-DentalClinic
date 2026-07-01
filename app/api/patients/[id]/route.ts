@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server"
 import { query } from "@/lib/db"
 import { success, error, requireAuth, handleApiError } from "@/lib/api-helpers"
+import logger from "@/lib/logger"
+import { auditLog } from "@/lib/audit"
 
 export async function GET(_req: NextRequest, ctx: RouteContext<"/api/patients/[id]">) {
   try {
@@ -25,7 +27,7 @@ export async function GET(_req: NextRequest, ctx: RouteContext<"/api/patients/[i
 
 export async function PUT(req: NextRequest, ctx: RouteContext<"/api/patients/[id]">) {
   try {
-    await requireAuth()
+    const session = await requireAuth()
     const { id } = await ctx.params
     const body = await req.json()
     const result = await query(
@@ -37,6 +39,8 @@ export async function PUT(req: NextRequest, ctx: RouteContext<"/api/patients/[id
     if (result.rows.length === 0) {
       return error("NOT_FOUND", "Patient not found", 404)
     }
+    logger.info({ event: "PATIENT_UPDATED", userId: session.user.id, patientId: id })
+    auditLog({ userId: session.user.id, action: "update", entityType: "patient", entityId: id }).catch(() => {})
     return success(result.rows[0])
   } catch (err) {
     return handleApiError(err)
@@ -45,12 +49,14 @@ export async function PUT(req: NextRequest, ctx: RouteContext<"/api/patients/[id
 
 export async function DELETE(_req: NextRequest, ctx: RouteContext<"/api/patients/[id]">) {
   try {
-    await requireAuth()
+    const session = await requireAuth()
     const { id } = await ctx.params
     const result = await query("DELETE FROM patients WHERE id = $1 RETURNING id", [id])
     if (result.rows.length === 0) {
       return error("NOT_FOUND", "Patient not found", 404)
     }
+    logger.info({ event: "PATIENT_DELETED", userId: session.user.id, patientId: id })
+    auditLog({ userId: session.user.id, action: "delete", entityType: "patient", entityId: id }).catch(() => {})
     return success({ id })
   } catch (err) {
     return handleApiError(err)

@@ -20,6 +20,7 @@ import {
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { getInitials, formatDate, formatCurrency } from "@/lib/utils"
 import { patientsApi } from "@/lib/api"
+import { logClientError } from "@/lib/client-logger"
 import Link from "next/link"
 
 export default function PatientsPage() {
@@ -44,7 +45,7 @@ export default function PatientsPage() {
       const result = await patientsApi.list(params)
       setPatients(result.data)
     } catch (err) {
-      console.error("Failed to load patients:", err)
+      logClientError("Failed to load patients", err)
     } finally {
       setLoading(false)
     }
@@ -59,7 +60,7 @@ export default function PatientsPage() {
       setForm({ name: "", gender: "male", dateOfBirth: "", phone: "", email: "", address: "", bloodGroup: "", notes: "", vip: false })
       await loadPatients()
     } catch (err: any) {
-      console.error("Failed to create patient:", err)
+      logClientError("Failed to create patient", err)
     } finally {
       setSaving(false)
     }

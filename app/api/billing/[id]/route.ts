@@ -1,10 +1,11 @@
 import { NextRequest } from "next/server"
 import { query } from "@/lib/db"
 import { success, error, requireAuth, handleApiError } from "@/lib/api-helpers"
+import logger from "@/lib/logger"
 
 export async function GET(_req: NextRequest, ctx: RouteContext<"/api/billing/[id]">) {
   try {
-    await requireAuth()
+    const session = await requireAuth()
     const { id } = await ctx.params
     const result = await query(
       `SELECT i.*, p.name as patient_name,
@@ -15,6 +16,7 @@ export async function GET(_req: NextRequest, ctx: RouteContext<"/api/billing/[id
     if (result.rows.length === 0) {
       return error("NOT_FOUND", "Invoice not found", 404)
     }
+    logger.info({ event: "INVOICE_VIEWED", userId: session.user.id, invoiceId: id })
     return success(result.rows[0])
   } catch (err) {
     return handleApiError(err)

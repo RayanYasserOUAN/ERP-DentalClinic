@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { getInitials } from "@/lib/utils"
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts"
 import { dashboardApi } from "@/lib/api"
+import { logClientError } from "@/lib/client-logger"
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<any>(null)
@@ -29,7 +30,7 @@ export default function DashboardPage() {
         setRevenueData(revenueRes.data)
         setTodayAppts(apptsRes.data)
       } catch (err) {
-        console.error("Failed to load dashboard data:", err)
+        logClientError("Failed to load dashboard data", err)
       } finally {
         setLoading(false)
       }

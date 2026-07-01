@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { query } from "@/lib/db"
 import { success, error } from "@/lib/api-helpers"
+import logger from "@/lib/logger"
 
 export async function GET() {
   try {
@@ -8,6 +9,7 @@ export async function GET() {
     const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !authUser) {
+      logger.warn("Failed to get current user", { event: "AUTH_ME_FAILURE" })
       return error("AUTHENTICATION_REQUIRED", "Authentication required", 401)
     }
 
@@ -22,6 +24,7 @@ export async function GET() {
     )
 
     if (result.rows.length === 0) {
+      logger.warn("Authenticated user has no profile", { event: "AUTH_ME_NO_PROFILE", userId: authUser.id })
       return success({
         id: authUser.id,
         name: authUser.user_metadata?.name || authUser.email?.split("@")[0],
@@ -34,7 +37,7 @@ export async function GET() {
 
     return success(result.rows[0])
   } catch (err) {
-    console.error("Me error:", err)
+    logger.error({ event: "AUTH_ME_ERROR", error: err instanceof Error ? err.message : String(err) })
     return error("INTERNAL_ERROR", "An unexpected error occurred", 500)
   }
 }

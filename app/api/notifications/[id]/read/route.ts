@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import { query } from "@/lib/db"
 import { success, handleApiError } from "@/lib/api-helpers"
 import { createClient } from "@/lib/supabase/server"
+import logger from "@/lib/logger"
 
 export async function PATCH(_req: NextRequest, ctx: RouteContext<"/api/notifications/[id]/read">) {
   try {
@@ -13,6 +14,7 @@ export async function PATCH(_req: NextRequest, ctx: RouteContext<"/api/notificat
 
     const { id } = await ctx.params
     await query("UPDATE notifications SET read = TRUE WHERE id = $1 AND user_id = $2", [id, user.id])
+    logger.info({ event: "NOTIFICATION_READ", userId: user.id, notificationId: id })
     return success({ id })
   } catch (err) {
     return handleApiError(err)

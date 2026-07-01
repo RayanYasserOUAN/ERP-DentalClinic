@@ -2,6 +2,8 @@ import { NextRequest } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 import { query } from "@/lib/db"
 import { success, error } from "@/lib/api-helpers"
+import logger from "@/lib/logger"
+import { auditLog } from "@/lib/audit"
 
 export async function POST(req: NextRequest) {
   try {
@@ -28,6 +30,7 @@ export async function POST(req: NextRequest) {
     })
 
     if (authError) {
+      logger.warn("Registration failed", { event: "AUTH_REGISTER_FAILURE", email, error: authError.message })
       return error("REGISTRATION_FAILED", authError.message, 400)
     }
 
@@ -41,6 +44,9 @@ export async function POST(req: NextRequest) {
       [userId, name, email, "", patientRole.rows[0].id]
     )
 
+    logger.info("User registered", { event: "AUTH_REGISTER_SUCCESS", userId, email, role: "patient" })
+    auditLog({ userId, action: "create", entityType: "user", entityId: userId, details: { email, role: "patient" } }).catch(() => {})
+
     return success({
       id: userId,
       name,
@@ -48,7 +54,7 @@ export async function POST(req: NextRequest) {
       role: "patient",
     }, 201)
   } catch (err) {
-    console.error("Register error:", err)
+    logger.error({ event: "AUTH_REGISTER_ERROR", error: err instanceof Error ? err.message : String(err) })
     return error("INTERNAL_ERROR", "An unexpected error occurred", 500)
   }
 }
